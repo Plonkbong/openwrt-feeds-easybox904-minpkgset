@@ -1,0 +1,20 @@
+--- a/configure.in
++++ b/configure.in
+@@ -2950,7 +2950,6 @@ case "$host" in
+             *-*-minix*)         ARCH=minix ;;
+         esac
+         CheckVisibilityHidden
+-        CheckDeclarationAfterStatement
+         CheckDummyVideo
+         CheckDiskAudio
+         CheckDummyAudio
+--- a/configure
++++ b/configure
+@@ -23119,7 +23119,6 @@ case "$host" in
+             *-*-minix*)         ARCH=minix ;;
+         esac
+         CheckVisibilityHidden
+-        CheckDeclarationAfterStatement
+         CheckDummyVideo
+         CheckDiskAudio
+         CheckDummyAudio

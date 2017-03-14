@@ -1,0 +1,13 @@
+--- a/Makefile
++++ b/Makefile
+@@ -13,8 +13,8 @@ LUABIN= $(LUA)/src
+ #LUABIN= $(LUA)/bin
+ 
+ # probably no need to change anything below here
+-CC= gcc
+-CFLAGS= $(INCS) $(WARN) -O2 $G
++#CC= gcc
++#CFLAGS= $(INCS) $(WARN) -O2 $G
+ WARN= -pedantic -Wall -Wextra
+ INCS= -I$(LUAINC)
+ MAKESO= $(CC) -shared
