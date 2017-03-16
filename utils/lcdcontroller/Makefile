@@ -18,7 +18,7 @@ define Package/lcdcontroller
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=LCD Controller
-  DEPENDS:=@DISPLAY_SUPPORT +lua +libc +lua-evdev +lua-lalarm
+  DEPENDS:=@DISPLAY_SUPPORT +lua +libc +lua-evdev +lua-lalarm +lualanes
 endef
 
 define Build/Configure
