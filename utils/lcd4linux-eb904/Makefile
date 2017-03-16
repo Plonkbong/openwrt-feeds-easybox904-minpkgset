@@ -291,14 +291,11 @@ define Package/lcd4linux-eb904/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(CP) $(PKG_INSTALL_DIR)/usr/bin/lcd4linux $(1)/usr/bin/
 	$(INSTALL_DIR) $(1)/etc
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/lcd4linux.conf.sample $(1)/etc/lcd4linux.conf
+	$(INSTALL_CONF) ./files/lcd4linux.conf $(1)/etc/lcd4linux.conf
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/lcd4linux.init $(1)/etc/init.d/lcd4linux
-	$(SED) "s|^\(Display 'GLCD2USB'\)|#\1|g" \
-	    -e "s|^\(Layout 'TestLayer'\)|#\1|g" \
-	    -e "s|^#\(Display 'Image'\)|\1|g" \
-	    -e "s|^#\(Layout 'Default'\)|\1|g" \
-	     $(1)/etc/lcd4linux.conf
+	$(INSTALL_DIR) $(1)/usr/share/lcdcontroller
+	$(INSTALL_BIN) ./files/sky_small.png $(1)/usr/share/lcdcontroller/sky_small.png
 endef
 
 Package/lcd4linux-eb904-custom/conffiles = $(Package/lcd4linux-eb904/conffiles)
