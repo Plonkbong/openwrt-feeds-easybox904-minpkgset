@@ -26,7 +26,7 @@ define Package/libsdl-image
   CATEGORY:=Libraries
   TITLE:=Simple DirectMedia Layer Image
   URL:=http://www.libsdl.org/projects/SDL_image/
-  DEPENDS:=+libsdl
+  DEPENDS:=+libsdl2
 endef
 
 define Package/libsdl-image/description
