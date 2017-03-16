@@ -296,6 +296,7 @@ define Package/lcd4linux-eb904/install
 	$(INSTALL_BIN) ./files/lcd4linux.init $(1)/etc/init.d/lcd4linux
 	$(INSTALL_DIR) $(1)/usr/share/lcdcontroller
 	$(INSTALL_BIN) ./files/sky_small.png $(1)/usr/share/lcdcontroller/sky_small.png
+	$(INSTALL_BIN) ./files/black.png $(1)/usr/share/lcdcontroller/black.png
 endef
 
 Package/lcd4linux-eb904-custom/conffiles = $(Package/lcd4linux-eb904/conffiles)
