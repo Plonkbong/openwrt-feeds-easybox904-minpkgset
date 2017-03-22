@@ -1,0 +1,13 @@
+Index: fbida-2.08/GNUmakefile
+===================================================================
+--- fbida-2.08.orig/GNUmakefile
++++ fbida-2.08/GNUmakefile
+@@ -181,7 +181,7 @@ OBJS_FBI += $(filter-out wr/%,$(call ac_
+ # jpeg/exif libs
+ fbi : override CFLAGS += $(shell pkg-config --cflags freetype2 fontconfig)
+ fbi : override LDLIBS += $(shell pkg-config --libs   freetype2 fontconfig)
+-fbi : override LDLIBS += -ljpeg -lexif -lm
++fbi : override LDLIBS += -ljpeg -lexif -lm -liconv
+ 
+ fbi: $(OBJS_FBI) $(OBJS_READER)
+ 
