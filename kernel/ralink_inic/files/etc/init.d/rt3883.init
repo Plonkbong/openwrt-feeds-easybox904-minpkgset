@@ -1,0 +1,19 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2010-2011 OpenWrt.org
+
+START=09
+
+load_module() {
+	# GPIO 21 --> + 462 = 483
+
+	/sbin/insmod /tmp/inic/rt3883_iNIC.ko mode=ap miimaster=eth0.1 mac=4c:09:d4:16:d8:88 mac2=4c:09:d4:16:d8:89 reset_gpio=483
+	# Load the driver
+	ip link set dev ra00_0 up 2>&1 >/dev/kmsg
+}
+
+boot() {
+        load_module
+}
+
+start() { :; }
+stop() { :; }
