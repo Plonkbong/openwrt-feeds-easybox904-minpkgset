@@ -4,11 +4,19 @@
 START=09
 
 load_module() {
-	# GPIO 21 --> + 462 = 483
+	busybox devmem 0x1e10b200 32 0x4024 # MII_CFG_5 (mii_base + portnum*8) = MII_CFG_EN | MII_CFG_RATE_M125 | MII_CFG_MODE_RGMII
+	busybox devmem 0x1e10b204 32 0xc003 # PCDU_5
+	busybox devmem 0x1e10a40c 32 0x0180 # MAC_CTRL_0 todo :switch settings
+	busybox devmem 0x1e10b140 32 0x3205 # PHY_ADDR_5 mdio_base + (0x54 -(portnum*4)) = MDIO_PHY_LINK_UP | MDIO_PHY_SPEED_G1 | MDIO_PHY_FDUP_EN | phyaddr
 
-	/sbin/insmod /tmp/inic/rt3883_iNIC.ko mode=ap miimaster=eth0.1 mac=4c:09:d4:16:d8:88 mac2=4c:09:d4:16:d8:89 reset_gpio=483
-	# Load the driver
+	sleep 10
+
+	# GPIO 21 --> + 462 = 483
+	/sbin/insmod /tmp/inic/rt3883_iNIC.ko mode=ap miimaster=eth0.1 mac=4c:09:d4:16:d8:88 mac2=4c:09:d4:16:d8:8A reset_gpio=483
+
+	# Upload profile and firmware and boot the device.
 	ip link set dev ra00_0 up 2>&1 >/dev/kmsg
+	ip link set dev ra01_0 up 2>&1 >/dev/kmsg
 }
 
 boot() {
