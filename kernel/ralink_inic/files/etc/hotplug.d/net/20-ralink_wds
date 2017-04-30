@@ -1,6 +1,6 @@
 include /lib/wifi
 
-setup_ebwifi_wds() {
+setup_ralink_wds() {
 	local iface="$1"
 	local remote="$(wlc ifname "$iface" wdsmac)"
 
@@ -56,6 +56,6 @@ setup_ebwifi_wds() {
 
 case "$ACTION" in
 	add|register)
-		[ "${INTERFACE%%[0-1]-*}" = wds ] && setup_ebwifi_wds "$INTERFACE"
+		[ "${INTERFACE%%[0-1]-*}" = wds ] && setup_ralink_wds "$INTERFACE"
 	;;
 esac
