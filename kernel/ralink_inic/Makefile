@@ -14,7 +14,8 @@ PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)_$(ARCH).tar.bz2
-PKG_SOURCE_URL:=https://github.com/kovz/ralink_inic.git
+#PKG_SOURCE_URL:=https://github.com/kovz/ralink_inic.git
+PKG_SOURCE_URL:=https://github.com/Quallenauge/ralink_inic.git
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
 PKG_SOURCE_VERSION:=feature/lede_integration
 
