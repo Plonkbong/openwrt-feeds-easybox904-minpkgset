@@ -283,7 +283,8 @@ detect_ralink() {
 			set wireless.default_${iface}.device=${iface}
 			set wireless.default_${iface}.mode=ap
 			set wireless.default_${iface}.ssid=Lede${i#0}
-			set wireless.default_${iface}.encryption=none
+			set wireless.default_${iface}.encryption=psk2+aes
+			set wireless.default_${iface}.key=WiFipassword
 EOF
 
 #set wireless.default_${iface}.network=lan
