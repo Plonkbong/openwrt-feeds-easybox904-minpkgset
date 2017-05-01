@@ -79,6 +79,8 @@ define KernelPackage/ralink_inic/install
 	$(INSTALL_DIR) $(1)/lib/modules/$(LINUX_VERSION)
 #	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) ./files/etc/init.d/rt3883.init $(1)/etc/init.d/rt3883
+	$(INSTALL_DIR) $(1)/lib/wifi
+	$(INSTALL_BIN) ./files/lib/wifi/ralink.sh $(1)/lib/wifi
 #	$(CP) $(PKG_BUILD_DIR)/tools/{madwifi_multi,80211debug,80211stats,athchans,athctrl,athdebug,athkey,athstats,wlanconfig} $(1)/usr/sbin/
 endef
 
