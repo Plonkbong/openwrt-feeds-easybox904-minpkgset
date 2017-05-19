@@ -266,9 +266,9 @@ eval "$vif_post_up"
 detect_ralink() {
 	local i=-1
 
-	while grep -qs "^ *ra0$((++i))_0:" /proc/net/dev; do
+	while grep -qs "^ *wl0$((++i))0:" /proc/net/dev; do
 		local channel type
-		local iface=ra0${i}_0
+		local iface=wl0${i}0
 		config_get type ${iface} type
 		[ "$type" = ralink ] && continue
 		channel=11
