@@ -48,11 +48,23 @@ load_module() {
 	echo "Insmod with MAC1=$MAC1 and MAC2=$MAC2"
 
 	# GPIO 21 --> + 462 = 483
-	/sbin/insmod /lib/modules/`uname -r`/rt3883_iNIC.ko mode=ap miimaster=eth0.1 mac=$MAC1 mac2=$MAC2 reset_gpio=483
+	/sbin/insmod /lib/modules/`uname -r`/rt3883_iNIC.ko mode=ap miimaster=eth0.3 mac=$MAC1 mac2=$MAC2 reset_gpio=483
 
 	# Upload profile and firmware and boot the device.
-	ip link set dev ra00_0 up 2>&1 >/dev/kmsg
-	ip link set dev ra01_0 up 2>&1 >/dev/kmsg
+	ip link set dev wl000 up 2>&1 >/dev/kmsg
+	ip link set dev wl010 up 2>&1 >/dev/kmsg
+
+	# set vlan for normal wireless traffic
+	# 5GHz
+	iwpriv wl000 set VLANID=66
+	# 2.4GHz
+	iwpriv wl010 set VLANID=66
+
+	# set vlan for guest wireless traffic
+	# 5GHz
+	#iwpriv wl001 set VLANID=71
+	# 2.4GHz
+	#iwpriv wl011 set VLANID=71
 	
 	# Start wifi network
 	/sbin/wifi config
