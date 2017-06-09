@@ -33,8 +33,7 @@ define KernelPackage/keyboard-eb904/description
 endef
 
 MAKE_KMOD := $(MAKE) -C "$(LINUX_DIR)" \
-                CROSS_COMPILE="$(TARGET_CROSS)" \
-                ARCH="$(LINUX_KARCH)" \
+		$(KERNEL_MAKE_FLAGS) \
                 PATH="$(TARGET_PATH)" \
                 SUBDIRS="$(PKG_BUILD_DIR)/kmod"
 
