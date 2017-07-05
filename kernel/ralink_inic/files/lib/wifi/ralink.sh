@@ -96,7 +96,8 @@ disable_ralink() {
 				ifname=${dev##/sys/class/net/}
 				operstate=`cat /sys/class/net/${ifname}/operstate`
 				#echo "Shutdown $ifname State: $operstate"
-				if [[ "$operstate" == "up" ]]; then
+				if [[ "$operstate" != "down" ]]; then
+					echo "Shutdown interface $ifname"
 					iwpriv $ifname set Enable=1
 					iwpriv $ifname set Enable=0
 					iwpriv $ifname set RadioOn=0
