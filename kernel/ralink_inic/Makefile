@@ -18,6 +18,7 @@ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)_$(ARCH).tar.bz2
 PKG_SOURCE_URL:=https://github.com/Quallenauge/ralink_inic.git
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
 PKG_SOURCE_VERSION:=feature/lede_integration
+PKG_HASH:=6596ff34509f25b4b7604023ef6d4b8def204a05cdd140b93bbdc1b76acd56a9
 
 PKG_FLAGS:=nonshared
 
