@@ -23,7 +23,7 @@ PKG_SOURCE_VERSION:=Makefiles
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
 
-PKG_BUILD_DEPENDS:=lua/host luac/host
+PKG_BUILD_DEPENDS:=lua/host
 
 include $(INCLUDE_DIR)/package.mk
 

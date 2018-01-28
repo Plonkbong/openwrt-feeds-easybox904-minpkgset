@@ -17,7 +17,7 @@ PKG_LICENSE_FILES:=LICENSE
 PKG_SOURCE_URL:=http://webserver2.tecgraf.puc-rio.br/~lhf/ftp/lua/5.1
 PKG_SOURCE:=lalarm.tar.gz
 PKG_BUILD_DIR:=$(BUILD_DIR)/alarm
-PKG_BUILD_DEPENDS:=lua/host luac/host
+PKG_BUILD_DEPENDS:=lua/host
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
 PKG_HASH:=0ebd8d07c07c58a30c7239ea2a17e5cd56ff4e5fd21727f31275fd0b50d29209
 
