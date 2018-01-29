@@ -14,6 +14,7 @@ PKG_RELEASE:=1
 PKG_BUILD_DIR:=$(BUILD_DIR)/RT3883
 PKG_SOURCE:=cfg.tar.xz
 PKG_SOURCE_URL:=https://github.com/Quallenauge/ralink_inic/releases/download/1.0.0
+PKG_MD5SUM:=c56f0d37582e2e77d732c8124acb64e2
 
 PKG_FLAGS:=nonshared
 
