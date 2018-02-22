@@ -62,7 +62,8 @@ define KernelPackage/fbtft-eb904
 	CONFIG_FB_TFT_WATTEROTT=n \
 	CONFIG_FB_FLEX=n \
 	CONFIG_FB_TFT_SSD1305=n \
-	CONFIG_FB_TFT_SSD1325=n
+	CONFIG_FB_TFT_SSD1325=n \
+	CONFIG_FB_TFT_SH1106=n
 
 # Enable for framebuffer console support
 #  KCONFIG+= \
