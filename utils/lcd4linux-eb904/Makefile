@@ -8,15 +8,21 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=lcd4linux
-PKG_REV:=1203
+#PKG_REV:=1203
+PKG_REV:=4f027
 PKG_VERSION:=r$(PKG_REV)
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_SOURCE_URL:=https://ssl.bulix.org/svn/lcd4linux/trunk/
+#PKG_SOURCE_URL:=https://ssl.bulix.org/svn/lcd4linux/trunk/
+#PKG_SOURCE_SUBDIR:=lcd4linux-$(PKG_VERSION)
+#PKG_SOURCE_VERSION:=$(PKG_REV)
+#PKG_SOURCE_PROTO:=svn
+
+PKG_SOURCE_URL:=https://github.com/netfun2000/lcd4linux.git
 PKG_SOURCE_SUBDIR:=lcd4linux-$(PKG_VERSION)
 PKG_SOURCE_VERSION:=$(PKG_REV)
-PKG_SOURCE_PROTO:=svn
+PKG_SOURCE_PROTO:=git
 
 LCD4LINUX_DRIVERS:= \
 	ASTUSB \
