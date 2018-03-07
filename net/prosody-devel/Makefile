@@ -8,7 +8,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=prosody-devel
-PKG_REV:=47115b0ca133
+PKG_REV:=489998717387
 PKG_VERSION:=r$(PKG_REV)
 PKG_RELEASE:=1
 
@@ -91,16 +91,20 @@ define Package/prosody-devel/install
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/modules/*.lua $(1)/usr/lib/prosody/modules/
 	$(INSTALL_DIR) $(1)/usr/lib/prosody/modules/adhoc
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/modules/adhoc/*.lua $(1)/usr/lib/prosody/modules/adhoc/
+	$(INSTALL_DIR) $(1)/usr/lib/prosody/modules/mod_mam
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/modules/mod_mam/*.lua $(1)/usr/lib/prosody/modules/mod_mam/
+	$(INSTALL_DIR) $(1)/usr/lib/prosody/modules/mod_pubsub
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/modules/mod_pubsub/*.lua $(1)/usr/lib/prosody/modules/mod_pubsub/
 	$(INSTALL_DIR) $(1)/usr/lib/prosody/modules/mod_s2s
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/modules/mod_s2s/*.lua $(1)/usr/lib/prosody/modules/mod_s2s/
 	$(INSTALL_DIR) $(1)/usr/lib/prosody/modules/muc
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/modules/muc/*.lua $(1)/usr/lib/prosody/modules/muc/
-#	$(INSTALL_DIR) $(1)/usr/lib/prosody/modules/storage
-#	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/modules/storage/*.lua $(1)/usr/lib/prosody/modules/storage/
 	$(INSTALL_DIR) $(1)/usr/lib/prosody/net
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/net/*.lua $(1)/usr/lib/prosody/net/
 	$(INSTALL_DIR) $(1)/usr/lib/prosody/net/http
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/net/http/*.lua $(1)/usr/lib/prosody/net/http/
+	$(INSTALL_DIR) $(1)/usr/lib/prosody/net/websocket
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/net/websocket/*.lua $(1)/usr/lib/prosody/net/websocket/
 	$(INSTALL_DIR) $(1)/usr/lib/prosody/util
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/util/*.lua $(1)/usr/lib/prosody/util/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/lib/prosody/util/*.so $(1)/usr/lib/prosody/util/
