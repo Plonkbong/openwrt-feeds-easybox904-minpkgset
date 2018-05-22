@@ -66,8 +66,8 @@ define KernelPackage/fbtft-eb904
 	CONFIG_FB_TFT_SH1106=n
 
 # Enable for framebuffer console support
-#  KCONFIG+= \
-#	CONFIG_VGA_CONSOLE=n\
+  KCONFIG+= \
+	CONFIG_VGA_CONSOLE=n
 #	CONFIG_VT=y\
 #	CONFIG_VT_CONSOLE=y\
 #	CONFIG_VT_HW_CONSOLE_BINDING=y\
