@@ -237,6 +237,7 @@ enable_ralink() {
 		local ssid
 		config_get ssid "$vif" ssid
 		append vif_post_up "iwpriv '$ifname' set SSID=$ssid " ";$N"
+		append vif_post_up "iwpriv '$ifname' set Channel=$channel " ";$N"
 		
 		append vif_post_up "iwpriv '$ifname' set Enable=1" ";$N"
 		append vif_post_up "iwpriv '$ifname' set RadioOn=1 " ";$N"
