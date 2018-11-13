@@ -100,9 +100,7 @@ struct eb904_keypad {
 	struct hrtimer htimer;
 	struct delayed_work led_work;
 	bool polling_mode;
-	int sipoClK;
-	int sipoDAT;
-	int sipoOUT;
+	int reset_gpio;
 	unsigned int row_shift;
 };
 
@@ -359,7 +357,7 @@ static irqreturn_t eb904_irq_handler(int irq, void *dev_id) {
  * used by the initialization sequence.
  */
 static void gpio_set_value_and_wait(unsigned int gpio, int value) {
-	gpio_set_value(gpio, value);
+	gpio_set_value_cansleep(gpio, value);
 	mdelay(10);
 }
 
@@ -374,66 +372,11 @@ static int eb904_configure(struct device *dev, struct eb904_keypad *keypad_data,
 	 * Start performing a magic sequence,
 	 * which turns on the touchpad device.
 	 */
-	dev_dbg(dev, "Starting initialization sequence.\n");
-	gpio_set_value_and_wait(keypad_data->sipoOUT, 0);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 0);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 0);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 0);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 0);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoOUT, 1);
-	gpio_set_value_and_wait(keypad_data->sipoOUT, 0);
-	gpio_set_value_and_wait(keypad_data->sipoOUT, 0);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 0);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 0);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 0);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoDAT, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 1);
-	gpio_set_value_and_wait(keypad_data->sipoClK, 0);
-	gpio_set_value_and_wait(keypad_data->sipoOUT, 1);
-	gpio_set_value_and_wait(keypad_data->sipoOUT, 0);
-
-	dev_dbg(dev, "%s: Wait a moment to let the device initializing.\n",
+	dev_dbg(dev, "%s: Reset touch controller.\n",
 			__func__);
+	gpio_set_value_and_wait(keypad_data->reset_gpio, 0);
+	gpio_set_value_and_wait(keypad_data->reset_gpio, 1);
+
 	for (i = 0; i < INITIALIZATION_RETRIES; ++i) {
 		mdelay(INITIALIZATION_DELAY_MS);
 		error = eb904_read_byte(keypad_data, 0x00, &reg);
@@ -443,9 +386,6 @@ static int eb904_configure(struct device *dev, struct eb904_keypad *keypad_data,
 			break;
 		}
 	}
-	devm_gpio_free(dev, keypad_data->sipoClK);
-	devm_gpio_free(dev, keypad_data->sipoDAT);
-	devm_gpio_free(dev, keypad_data->sipoOUT);
 
 	//eb904_write_initvals(keypad_data, eb904_initvals, ARRAY_SIZE(eb904_initvals));
 
@@ -553,9 +493,7 @@ static int eb904_keypad_probe(struct i2c_client *client,
 	bool rep = false;
 	bool polling_mode = false;
 	int irqGpio;
-	int ctrl_clk_gpio;
-	int ctrl_dat_gpio;
-	int ctrl_out_gpio;
+	int ctrl_rst_gpio;
 	int irq;
 	/* alpha values for LEFT, DOWN, RIGHT, OK, UP sensors */
 	u8 key_sensor_alphas[KEY_SENSORS_COUNT];
@@ -573,29 +511,17 @@ static int eb904_keypad_probe(struct i2c_client *client,
 		dev_err(dev, "Error while parsing <eb904,interrupt-gpio> <%d>!\n", err);
 		return err;
 	}
-	err = eb904_request_one_output_gpio(dev, "eb904,ctrl-clk-gpios", 0,
-			&ctrl_clk_gpio);
+	err = eb904_request_one_output_gpio(dev, "eb904,ctrl-rst-gpio", 0,
+			&ctrl_rst_gpio);
 	if (err) {
-		dev_err(dev, "Error while parsing <eb904,ctrl-clk-gpios> <%d>!\n", err);
-		return err;
-	}
-	err = eb904_request_one_output_gpio(dev, "eb904,ctrl-dat-gpios", 0,
-			&ctrl_dat_gpio);
-	if (err) {
-		dev_err(dev, "Error while parsing <eb904,ctrl-dat-gpios> <%d>!\n", err);
-		return err;
-	}
-	err = eb904_request_one_output_gpio(dev, "eb904,ctrl-out-gpios", 0,
-			&ctrl_out_gpio);
-	if (err) {
-		dev_err(dev, "Error while parsing <eb904,ctrl-out-gpios> <%d>!\n", err);
-		return err;
+		dev_err(dev, "Error while parsing <eb904,ctrl-rst-gpio> <%d>!\n", err);
+		goto free_irq_gpio_err;
 	}
 	err = of_property_read_u8_array(dev->of_node, "eb904,alphas",
 			key_sensor_alphas, KEY_SENSORS_COUNT);
 	if (err) {
 		dev_err(dev, "Error while parsing <eb904,alphas> <%d>!\n", err);
-		return err;
+		goto free_reset_gpio_err;
 	}
 
 	rep = of_property_read_bool(np, "keypad,autorepeat");
@@ -603,19 +529,22 @@ static int eb904_keypad_probe(struct i2c_client *client,
 
 	if (!rows || rows != 3) {
 		dev_err(dev, "invalid rows\n");
-		return -EINVAL;
+		err = -EINVAL;
+		goto free_reset_gpio_err;
 	}
 
 	if (!cols || cols != 3) {
 		dev_err(dev, "invalid columns\n");
-		return -EINVAL;
+		err = -EINVAL;
+		goto free_reset_gpio_err;
 	}
 
 	/* Check i2c driver capabilities */
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE)) {
 		dev_err(dev, "%s adapter not supported\n",
 				dev_driver_string(&client->adapter->dev));
-		return -ENODEV;
+		err = -ENODEV;
+		goto free_reset_gpio_err;
 	}
 
 	row_shift = get_count_order(cols);
@@ -623,27 +552,29 @@ static int eb904_keypad_probe(struct i2c_client *client,
 
 	/* Allocate memory for keypad_data and input device */
 	keypad_data = devm_kzalloc(dev, sizeof(*keypad_data), GFP_KERNEL);
-	if (!keypad_data)
-		return -ENOMEM;
-
+	if (!keypad_data){
+		err = -ENOMEM;
+   		goto free_reset_gpio_err;
+	}
 	keypad_data->client = client;
 	keypad_data->row_shift = row_shift;
 	keypad_data->polling_mode = polling_mode;
-	keypad_data->sipoClK = ctrl_clk_gpio;
-	keypad_data->sipoDAT = ctrl_dat_gpio;
-	keypad_data->sipoOUT = ctrl_out_gpio;
+	keypad_data->reset_gpio = ctrl_rst_gpio;
 
 	/* Initialize the chip or fail if chip isn't present */
 	error = eb904_configure(dev, keypad_data, key_sensor_alphas);
 	if (error < 0) {
 		dev_err(dev, "Error while configuring keypad!\n");
-		return error;
+		err = error;
+   		goto free_reset_gpio_err;
 	}
 
 	/* Configure input device */
 	input = devm_input_allocate_device(dev);
-	if (!input)
-		return -ENOMEM;
+	if (!input){
+		err = -ENOMEM;
+   		goto free_reset_gpio_err;
+	}
 
 	keypad_data->input = input;
 
@@ -657,7 +588,8 @@ static int eb904_keypad_probe(struct i2c_client *client,
 	NULL, input);
 	if (error) {
 		dev_err(dev, "Failed to build keymap\n");
-		return error;
+		err = error;
+   		goto free_reset_gpio_err;
 	}
 
 	if (rep)
@@ -669,9 +601,10 @@ static int eb904_keypad_probe(struct i2c_client *client,
 	if (!eb904_wq) {
 		eb904_wq = create_singlethread_workqueue("eb904_wq");
 	}
-	if (!eb904_wq)
-		return -ENOMEM;
-
+	if (!eb904_wq){
+		err = -ENOMEM;
+   		goto free_reset_gpio_err;
+	}
 	eb904_keypad_reference = keypad_data;
 
 	//1. Init Work queue and necessary buffers
@@ -695,7 +628,8 @@ static int eb904_keypad_probe(struct i2c_client *client,
 
 		if (error) {
 			dev_err(dev, "Unable to claim irq %d; error %d\n", irq, error);
-			return error;
+			err = error;
+			goto free_reset_gpio_err;
 		}
 	}
 
@@ -704,10 +638,18 @@ static int eb904_keypad_probe(struct i2c_client *client,
 	error = input_register_device(input);
 	if (error) {
 		dev_err(dev, "Unable to register input device, error: %d\n", error);
-		return error;
+		err = error;
+		goto free_reset_gpio_err;
 	}
 
 	return 0;
+
+	free_reset_gpio_err:
+	devm_gpio_free(dev, ctrl_rst_gpio);
+
+	free_irq_gpio_err:
+	devm_gpio_free(dev, irqGpio);
+	return err;
 }
 
 int eb904_keypad_remove(struct i2c_client *i2c_client) {
