@@ -28,6 +28,16 @@
 
 #include "fbtft.h"
 
+extern spinlock_t ebu_lock;
+
+
+// Only for now let's use own spinlock macros, so we can easily disable them for testing
+//#define SPIN_LOCK_IRQSAVE(lock,flags)
+//#define SPIN_UNLOCK_IRQRESTORE(lock,flags)
+#define SPIN_LOCK_IRQSAVE(lock,flags)		spin_lock_irqsave(lock,flags)
+#define SPIN_UNLOCK_IRQRESTORE(lock,flags)	spin_unlock_irqrestore(lock,flags)
+
+
 #define	LCD_CMD_MMAP_ADDR	0xB6000002
 #define	LCD_DAT_MMAP_ADDR	0xB6000000
 #define	LCD_CMD_MASK		0x0
@@ -55,6 +65,18 @@
 				(val) = ( ( ( __tmp__h >> LCD_VAL_SHIFT ) & 0xff ) << 8 ) | ( ( __tmp__l >> LCD_VAL_SHIFT ) & 0xff ); \
 } while ( 0 )
 
+
+
+// Replacements for write_reg macro where name indiciates if it is without/with EBU spinlocking
+static void fbtft_write_reg8_bus8_ebu(struct fbtft_par *par, int len, ...);
+#define write_reg_nolock(par, ...)						\
+	(fbtft_write_reg8_bus8_ebu(par, NUMARGS(__VA_ARGS__), __VA_ARGS__))
+
+static void fbtft_write_reg8_bus8_ebu_smp(struct fbtft_par *par, int len, ...);
+#define write_reg_lock(par, ...)						\
+	(fbtft_write_reg8_bus8_ebu_smp(par, NUMARGS(__VA_ARGS__), __VA_ARGS__))
+
+
 #define DRVNAME		"fb_ili9341_eb904"
 #define WIDTH		240
 #define HEIGHT		320
@@ -64,29 +86,30 @@
 #define UBOOT_GAMMA	"0F 1B 17 0C 0D 08 40 A9 28 06 0D 03 10 03 00\n" \
 			"00 24 28 03 12 07 3F 56 57 09 12 0C 2F 3C 0F"
 
-void lcd_DelayNs( unsigned long nsec )
+
+static void lcd_DelayNs( unsigned long nsec )
 {
 	ndelay(nsec);
 }
 
-void lcd_DelayUs( unsigned long usec )
+static void lcd_DelayUs( unsigned long usec )
 {
 	udelay(usec);
 }
 
-void lcd_WriteCommand( unsigned char iReg )
+static void lcd_WriteCommand( unsigned char iReg )
 {
 	// printk("%s: Write command 0x%04x\n",__FUNCTION__, iReg);
 	LCD_SET_CMD( iReg );
 }
 
-void lcd_WriteData( unsigned short iData )
+static void lcd_WriteData( unsigned short iData )
 {
 	// printk("%s: Write data 0x%04x\n",__FUNCTION__, iData);
 	LCD_SET_DAT( iData );
 }
 
-unsigned short lcd_ReadData( void )
+static unsigned short lcd_ReadData( void )
 {
 	unsigned short	iData;
 
@@ -95,7 +118,7 @@ unsigned short lcd_ReadData( void )
 	return iData;
 }
 
-unsigned short ili9341_GetControllerID( void )
+static unsigned short ili9341_GetControllerID( void )
 {
 	unsigned short	iParameter1;
 	unsigned short	iParameter2;
@@ -108,13 +131,15 @@ unsigned short ili9341_GetControllerID( void )
 	return iParameter2;
 }
 
-int ili9341_Probe( void )
+static int ili9341_Probe( void )
 {
 	unsigned short value = ili9341_GetControllerID();
 	printk("%s: Probed ID4: %x\n", __FUNCTION__, value);
 	return ( value == 0x9341 );
 }
 
+
+#if 0	/// Code from U-Boot?
 static int init_display_uboot(struct fbtft_par *par)
 	{
 	// VCI=2.8V
@@ -235,69 +260,85 @@ static int init_display_uboot(struct fbtft_par *par)
 
 		return 0;
 	}
+#endif	// #if 0	// Code from U-Boot?
 
-static int init_display(struct fbtft_par *par)
+
+static int init_display_smp(struct fbtft_par *par)
 {
+	unsigned long lockflags;
+
 	par->fbtftops.reset(par);
+
+	SPIN_LOCK_IRQSAVE(&ebu_lock, lockflags);
 
 	ili9341_Probe();
 
 	/* startup sequence for MI0283QT-9A */
-	write_reg(par, MIPI_DCS_SOFT_RESET);
+	write_reg_nolock(par, MIPI_DCS_SOFT_RESET);
 	mdelay(5);
-	write_reg(par, MIPI_DCS_SET_DISPLAY_OFF);
+	write_reg_nolock(par, MIPI_DCS_SET_DISPLAY_OFF);
 	/* --------------------------------------------------------- */
-	write_reg(par, 0xCF, 0x00, 0x83, 0x30);
-	write_reg(par, 0xED, 0x64, 0x03, 0x12, 0x81);
-	write_reg(par, 0xE8, 0x85, 0x01, 0x79);
-	write_reg(par, 0xCB, 0x39, 0X2C, 0x00, 0x34, 0x02);
-	write_reg(par, 0xF7, 0x20);
-	write_reg(par, 0xEA, 0x00, 0x00);
+	write_reg_nolock(par, 0xCF, 0x00, 0x83, 0x30);
+	write_reg_nolock(par, 0xED, 0x64, 0x03, 0x12, 0x81);
+	write_reg_nolock(par, 0xE8, 0x85, 0x01, 0x79);
+	write_reg_nolock(par, 0xCB, 0x39, 0X2C, 0x00, 0x34, 0x02);
+	write_reg_nolock(par, 0xF7, 0x20);
+	write_reg_nolock(par, 0xEA, 0x00, 0x00);
 	/* ------------power control-------------------------------- */
-//	write_reg(par, 0xC0, 0x26);
-//	write_reg(par, 0xC1, 0x11);
-	write_reg(par, 0xC0, 0x21); //VRH[5:0]
-	write_reg(par, 0xC1, 0x12); //SAP[2:0];BT[3:0]
+//	write_reg_nolock(par, 0xC0, 0x26);
+//	write_reg_nolock(par, 0xC1, 0x11);
+	write_reg_nolock(par, 0xC0, 0x21); //VRH[5:0]
+	write_reg_nolock(par, 0xC1, 0x12); //SAP[2:0];BT[3:0]
 
 	/* ------------VCOM --------- */
-//	write_reg(par, 0xC5, 0x35, 0x3E);
-//	write_reg(par, 0xC7, 0xBE);
-	write_reg(par, 0xC5, 0x24, 0x3F); //VCM control
-	write_reg(par, 0xC7, 0xC2);       //VCM control2
+//	write_reg_nolock(par, 0xC5, 0x35, 0x3E);
+//	write_reg_nolock(par, 0xC7, 0xBE);
+	write_reg_nolock(par, 0xC5, 0x24, 0x3F); //VCM control
+	write_reg_nolock(par, 0xC7, 0xC2);       //VCM control2
 	/* ------------memory access control------------------------ */
-	write_reg(par, MIPI_DCS_SET_PIXEL_FORMAT, 0x55); /* 16bit pixel */
+	write_reg_nolock(par, MIPI_DCS_SET_PIXEL_FORMAT, 0x55); /* 16bit pixel */
 	/* ------------frame rate----------------------------------- */
-	// write_reg(par, 0xB1, 0x00, 0x1B);
-	write_reg(par, 0xB1, 0x00, 0x16); // uboot
+	// write_reg_nolock(par, 0xB1, 0x00, 0x1B);
+	write_reg_nolock(par, 0xB1, 0x00, 0x16); // uboot
 	/* ------------Gamma---------------------------------------- */
-	/* write_reg(par, 0xF2, 0x08); */ /* Gamma Function Disable */
-	write_reg(par, MIPI_DCS_SET_GAMMA_CURVE, 0x01);
+	/* write_reg_nolock(par, 0xF2, 0x08); */ /* Gamma Function Disable */
+	write_reg_nolock(par, MIPI_DCS_SET_GAMMA_CURVE, 0x01);
 	/* ------------display-------------------------------------- */
-	write_reg(par, 0xB7, 0x07); /* entry mode set */
+	write_reg_nolock(par, 0xB7, 0x07); /* entry mode set */
 	/* ------------additional values---------------------------- */
-	write_reg(par, 0x13);       /* normal display mode on */
-	write_reg(par, 0x38);       /* idle mode off */
-	write_reg(par, 0x20);       /* inversion mode off */
+	write_reg_nolock(par, 0x13);       /* normal display mode on */
+	write_reg_nolock(par, 0x38);       /* idle mode off */
+	write_reg_nolock(par, 0x20);       /* inversion mode off */
 	/* --------------------------------------------------------- */
-	write_reg(par, 0xB6, 0x0A, 0x82, 0x27, 0x00);
-	write_reg(par, MIPI_DCS_EXIT_SLEEP_MODE);
+	write_reg_nolock(par, 0xB6, 0x0A, 0x82, 0x27, 0x00);
+	write_reg_nolock(par, MIPI_DCS_EXIT_SLEEP_MODE);
 	mdelay(100);
-	write_reg(par, MIPI_DCS_SET_DISPLAY_ON);
+	write_reg_nolock(par, MIPI_DCS_SET_DISPLAY_ON);
 	mdelay(20);
+
+	SPIN_UNLOCK_IRQRESTORE(&ebu_lock, lockflags);
 
 	return 0;
 }
 
-static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
+
+static void set_addr_win_smp(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 {
-	write_reg(par, MIPI_DCS_SET_COLUMN_ADDRESS,
+	unsigned long lockflags;
+
+	SPIN_LOCK_IRQSAVE(&ebu_lock, lockflags);
+
+	write_reg_nolock(par, MIPI_DCS_SET_COLUMN_ADDRESS,
 		  (xs >> 8) & 0xFF, xs & 0xFF, (xe >> 8) & 0xFF, xe & 0xFF);
 
-	write_reg(par, MIPI_DCS_SET_PAGE_ADDRESS,
+	write_reg_nolock(par, MIPI_DCS_SET_PAGE_ADDRESS,
 		  (ys >> 8) & 0xFF, ys & 0xFF, (ye >> 8) & 0xFF, ye & 0xFF);
 
-	write_reg(par, MIPI_DCS_WRITE_MEMORY_START);
+	write_reg_nolock(par, MIPI_DCS_WRITE_MEMORY_START);
+
+	SPIN_UNLOCK_IRQRESTORE(&ebu_lock, lockflags);
 }
+
 
 #define MEM_Y   BIT(7) /* MY row address order */
 #define MEM_X   BIT(6) /* MX column address order */
@@ -305,28 +346,30 @@ static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 #define MEM_L   BIT(4) /* ML vertical refresh order */
 #define MEM_H   BIT(2) /* MH horizontal refresh order */
 #define MEM_BGR (3) /* RGB-BGR Order */
-static int set_var(struct fbtft_par *par)
+static int set_var_smp(struct fbtft_par *par)
 {
 	switch (par->info->var.rotate) {
 	case 0:
-		write_reg(par, MIPI_DCS_SET_ADDRESS_MODE,
-			  MEM_X | (par->bgr << MEM_BGR));
+		write_reg_lock(par, MIPI_DCS_SET_ADDRESS_MODE,
+			       MEM_X | (par->bgr << MEM_BGR));
 		break;
 	case 270:
-		write_reg(par, MIPI_DCS_SET_ADDRESS_MODE,
-			  MEM_V | MEM_L | (par->bgr << MEM_BGR));
+		write_reg_lock(par, MIPI_DCS_SET_ADDRESS_MODE,
+			       MEM_V | MEM_L | (par->bgr << MEM_BGR));
 		break;
 	case 180:
-		write_reg(par, MIPI_DCS_SET_ADDRESS_MODE,
-			  MEM_Y | (par->bgr << MEM_BGR));
+		write_reg_lock(par, MIPI_DCS_SET_ADDRESS_MODE,
+			       MEM_Y | (par->bgr << MEM_BGR));
 		break;
 	case 90:
-		write_reg(par, MIPI_DCS_SET_ADDRESS_MODE,
-			  MEM_Y | MEM_X | MEM_V | (par->bgr << MEM_BGR));
+		write_reg_lock(par, MIPI_DCS_SET_ADDRESS_MODE,
+			       MEM_Y | MEM_X | MEM_V | (par->bgr << MEM_BGR));
 		break;
 	}
+
 	return 0;
 }
+
 
 /*
  * Gamma string format:
@@ -334,36 +377,57 @@ static int set_var(struct fbtft_par *par)
  *  Negative: Par1 Par2 [...] Par15
  */
 #define CURVE(num, idx)  curves[num * par->gamma.num_values + idx]
-static int set_gamma(struct fbtft_par *par, u32 *curves)
+
+static int set_gamma_smp(struct fbtft_par *par, u32 *curves)
 {
+	unsigned long lockflags;
 	int i;
+
+	SPIN_LOCK_IRQSAVE(&ebu_lock, lockflags);
+
 	for (i = 0; i < par->gamma.num_curves; i++)
-		write_reg(par, 0xE0 + i,
+		write_reg_nolock(par, 0xE0 + i,
 			  CURVE(i, 0), CURVE(i, 1), CURVE(i, 2),
 			  CURVE(i, 3), CURVE(i, 4), CURVE(i, 5),
 			  CURVE(i, 6), CURVE(i, 7), CURVE(i, 8),
 			  CURVE(i, 9), CURVE(i, 10), CURVE(i, 11),
 			  CURVE(i, 12), CURVE(i, 13), CURVE(i, 14));
+
+	SPIN_UNLOCK_IRQRESTORE(&ebu_lock, lockflags);
+
 	return 0;
 }
 
 #undef CURVE
 
-int fbtft_write_8_wr_ebu(struct fbtft_par *par, void *buf, size_t len)
+
+static void fbtft_write_8_wr_ebu(struct fbtft_par *par, u8 *buf, size_t len)
 {
 	u8 data;
+
 	fbtft_par_dbg_hex(DEBUG_WRITE, par, par->info->device, u8, buf, len, "%s(len=%d): ", __func__, len);
 
 	while (len--) {
-		data = *(u8 *)buf;
+		data = *buf;
 
 		/* Set data */
 		lcd_WriteData(data);
 		buf++;
 	}
+}
+
+
+static int fbtft_write_8_wr_ebu_smp(struct fbtft_par *par, void *buf, size_t len)
+{
+	unsigned long lockflags;
+
+	SPIN_LOCK_IRQSAVE(&ebu_lock, lockflags);
+	fbtft_write_8_wr_ebu(par, buf, len);
+	SPIN_UNLOCK_IRQRESTORE(&ebu_lock, lockflags);
 
 	return 0;
 }
+
 
 static int verify_gpios_ebu(struct fbtft_par *par)
 {
@@ -375,41 +439,47 @@ static int verify_gpios_ebu(struct fbtft_par *par)
 	return 0;
 }
 
-void fbtft_write_reg8_bus8_ebu(struct fbtft_par *par, int len, ...)
+
+static void fbtft_write_reg8_bus8_ebu_v(struct fbtft_par *par, int len, va_list args)
 {
-	va_list args;
-	int i, ret;
-	int offset = 0;
-	u8 *buf = (u8 *)par->buf;
+	u8 *buf = par->buf;
+	int i;
 
-	if (unlikely(par->debug & DEBUG_WRITE_REGISTER)) {
-		va_start(args, len);
-		for (i = 0; i < len; i++) {
-			buf[i] = (u8)va_arg(args, unsigned int);
-		}
-		va_end(args);
-		fbtft_par_dbg_hex(DEBUG_WRITE_REGISTER, par, par->info->device, u8, buf, len, "%s: ", __func__);
-	}
+	for (i = 0; i < len; i++)
+		buf[i] = (u8)va_arg(args, unsigned int);
 
-	va_start(args, len);
+	fbtft_par_dbg_hex(DEBUG_WRITE_REGISTER, par, par->info->device, u8, buf, len, "%s: ", __func__);
 
-	*buf = ((u8)va_arg(args, unsigned int));
 	lcd_WriteCommand((unsigned char)*buf);
 	len--;
 
-	if (len) {
-		i = len;
-		while (i--) {
-			*buf++ = ((u8)va_arg(args, unsigned int));
-		}
-		ret = par->fbtftops.write(par, par->buf, len * (sizeof(u8) + offset));
-		if (ret < 0) {
-			va_end(args);
-			dev_err(par->info->device, "%s: write() failed and returned %d\n", __func__, ret);
-			return;
-		}
-	}
+	if (len > 0)
+		fbtft_write_8_wr_ebu(par, buf+1, len);
+}
+
+
+static void fbtft_write_reg8_bus8_ebu(struct fbtft_par *par, int len, ...)
+{
+	va_list args;
+
+	va_start(args, len);
+	fbtft_write_reg8_bus8_ebu_v(par, len, args);
 	va_end(args);
+}
+
+
+static void fbtft_write_reg8_bus8_ebu_smp(struct fbtft_par *par, int len, ...)
+{
+	unsigned long lockflags;
+	va_list args;
+
+	SPIN_LOCK_IRQSAVE(&ebu_lock, lockflags);
+
+	va_start(args, len);
+	fbtft_write_reg8_bus8_ebu_v(par, len, args);
+	va_end(args);
+
+	SPIN_UNLOCK_IRQRESTORE(&ebu_lock, lockflags);
 }
 
 
@@ -422,13 +492,13 @@ static struct fbtft_display display = {
 	.gamma_len = 15,
 	.gamma = UBOOT_GAMMA,
 	.fbtftops = {
-		.init_display = init_display,
-		.set_addr_win = set_addr_win,
-		.set_var = set_var,
-		.set_gamma = set_gamma,
+		.init_display = init_display_smp,
+		.set_addr_win = set_addr_win_smp,
+		.set_var = set_var_smp,
+		.set_gamma = set_gamma_smp,
 		.verify_gpios = verify_gpios_ebu,
-		.write = fbtft_write_8_wr_ebu,
-		.write_register = fbtft_write_reg8_bus8_ebu,
+		.write = fbtft_write_8_wr_ebu_smp,
+		.write_register = fbtft_write_reg8_bus8_ebu_smp,
 	},
 };
 
