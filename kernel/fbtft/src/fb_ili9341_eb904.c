@@ -267,6 +267,14 @@ static int init_display_smp(struct fbtft_par *par)
 {
 	unsigned long lockflags;
 
+// As a reminder, the EBU setup in original eb904 U-Boot for the lcd. From lcd_Init() in file
+// package/infineon-utilities/feeds/ifx_feeds_uboot/open_uboot/src.904dsl/common/main.c:
+//
+//	*(unsigned long*)0xbe105328 = 0x160000f1;	// BSP_EBU_ADDSEL2 register
+//	*(unsigned long*)0xbe105368 = 0x1d3dd;		// BSP_EBU_BUSCON2 register
+//
+// Currently this is configured by U-Boot. Maybe the driver should do that too?
+
 	par->fbtftops.reset(par);
 
 	SPIN_LOCK_IRQSAVE(&ebu_lock, lockflags);
