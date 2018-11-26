@@ -16,12 +16,12 @@ end
 function switch_on_display()
 	print("Switching on display!")
 	os.execute("/etc/init.d/lcd4linux start")
-	os.execute("echo '0' >>/sys/class/backlight/fb_ili9341_eb904/bl_power")
+	os.execute("echo '1' >>/sys/class/backlight/fb_ili9341_eb904/bl_power")
 end
 
 function switch_off_display()
 	print("Switching off display!")
-	os.execute("echo '1' >>/sys/class/backlight/fb_ili9341_eb904/bl_power")
+	os.execute("echo '0' >>/sys/class/backlight/fb_ili9341_eb904/bl_power")
 	print("Schedule lcd4linux shutdown in ",timeout, "seconds.")
 	alarm(timeout,stop_lcd4linux)
 end
