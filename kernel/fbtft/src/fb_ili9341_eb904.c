@@ -1,10 +1,5 @@
 /*
- * FB driver for the ILI9341 LCD display controller
- *
- * This display uses 9-bit SPI: Data/Command bit + 8 data bits
- * For platforms that doesn't support 9-bit, the driver is capable
- * of emulating this using 8-bit transfer.
- * This is done by transferring eight 9-bit words in 9 bytes.
+ * FB driver for the ILI9341 LCD display controller in the Easybox 904
  *
  * Copyright (C) 2013 Christian Vogelgsang
  * Based on adafruit22fb.c by Noralf Tronnes
@@ -21,60 +16,20 @@
  */
 
 #include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
 #include <linux/delay.h>
 #include <video/mipi_display.h>
+#include <lantiq_soc.h>
 
 #include "fbtft.h"
 
 extern spinlock_t ebu_lock;
 
 
-// Only for now let's use own spinlock macros, so we can easily disable them for testing
-//#define SPIN_LOCK_IRQSAVE(lock,flags)
-//#define SPIN_UNLOCK_IRQRESTORE(lock,flags)
-#define SPIN_LOCK_IRQSAVE(lock,flags)		spin_lock_irqsave(lock,flags)
-#define SPIN_UNLOCK_IRQRESTORE(lock,flags)	spin_unlock_irqrestore(lock,flags)
+#define LCD_DAT_MMAP_OFF	0		// Offset to data register in memmapped region
+#define LCD_CMD_MMAP_OFF	2		// Offset to command register in memmapped region
 
-
-#define	LCD_CMD_MMAP_ADDR	0xB6000002
-#define	LCD_DAT_MMAP_ADDR	0xB6000000
-#define	LCD_CMD_MASK		0x0
-#define	LCD_DAT_MASK		0x0
-#define	LCD_VAL_SHIFT		8
-#define	LCD_SET_CMD( val )	\
-			do { \
-				lcd_DelayNs( 20 ); \
-				*(unsigned short*)LCD_CMD_MMAP_ADDR = ( 0x0 | LCD_CMD_MASK ); \
-				lcd_DelayNs( 20 ); \
-				*(unsigned short*)LCD_CMD_MMAP_ADDR = ( ( (unsigned short)(val) << LCD_VAL_SHIFT ) | LCD_CMD_MASK ); \
-			} while ( 0 )
-#define	LCD_SET_DAT( val )	\
-			do { \
-				lcd_DelayNs( 20 ); \
-				*(unsigned short*)LCD_DAT_MMAP_ADDR = ( ( ((unsigned short)(val)&0xff) << LCD_VAL_SHIFT ) | LCD_DAT_MASK ); \
-			} while ( 0 )
-#define	LCD_GET_DAT( val )	\
-			do { \
-				unsigned short	__tmp__h, __tmp__l; \
-				lcd_DelayNs( 20 ); \
-				__tmp__h = *(unsigned short*)LCD_DAT_MMAP_ADDR; \
-				lcd_DelayNs( 20 ); \
-				__tmp__l = *(unsigned short*)LCD_DAT_MMAP_ADDR; \
-				(val) = ( ( ( __tmp__h >> LCD_VAL_SHIFT ) & 0xff ) << 8 ) | ( ( __tmp__l >> LCD_VAL_SHIFT ) & 0xff ); \
-} while ( 0 )
-
-
-
-// Replacements for write_reg macro where name indiciates if it is without/with EBU spinlocking
-static void fbtft_write_reg8_bus8_ebu(struct fbtft_par *par, int len, ...);
-#define write_reg_nolock(par, ...)						\
-	(fbtft_write_reg8_bus8_ebu(par, NUMARGS(__VA_ARGS__), __VA_ARGS__))
-
-static void fbtft_write_reg8_bus8_ebu_smp(struct fbtft_par *par, int len, ...);
-#define write_reg_lock(par, ...)						\
-	(fbtft_write_reg8_bus8_ebu_smp(par, NUMARGS(__VA_ARGS__), __VA_ARGS__))
+#define	LCD_CMD_LOWBYTE		0x0		// Value to put into low byte for commands
+#define	LCD_DAT_LOWBYTE		0x0		// Value to put into low byte for data
 
 
 #define DRVNAME		"fb_ili9341_eb904"
@@ -87,59 +42,137 @@ static void fbtft_write_reg8_bus8_ebu_smp(struct fbtft_par *par, int len, ...);
 			"00 24 28 03 12 07 3F 56 57 09 12 0C 2F 3C 0F"
 
 
-static void lcd_DelayNs( unsigned long nsec )
-{
-	ndelay(nsec);
-}
+// Replacements for write_reg macro where name indicates if it is guarded
+// without/with EBU spinlocking code
+static void fbtft_write_reg8_bus8_ebu(struct fbtft_par *par, int len, ...);
+#define write_reg_nolock(par, ...)						\
+	(fbtft_write_reg8_bus8_ebu(par, NUMARGS(__VA_ARGS__), __VA_ARGS__))
 
-static void lcd_DelayUs( unsigned long usec )
-{
-	udelay(usec);
-}
+static void fbtft_write_reg8_bus8_ebu_smp(struct fbtft_par *par, int len, ...);
+#define write_reg_lock(par, ...)						\
+	(fbtft_write_reg8_bus8_ebu_smp(par, NUMARGS(__VA_ARGS__), __VA_ARGS__))
 
-static void lcd_WriteCommand( unsigned char iReg )
+
+// Lowlevel access to registers of fb controller
+static void lcd_WriteCommand(struct fbtft_par *par, u8 iReg)
 {
+	void __iomem  *addr = par->pdata->extra + LCD_CMD_MMAP_OFF;
+
 	// printk("%s: Write command 0x%04x\n",__FUNCTION__, iReg);
-	LCD_SET_CMD( iReg );
+
+	ndelay(20);
+	__raw_writew(0x0 | LCD_CMD_LOWBYTE, addr);
+
+	ndelay(20);
+	__raw_writew((iReg << 8) | LCD_CMD_LOWBYTE, addr);
 }
 
-static void lcd_WriteData( unsigned short iData )
+static void lcd_WriteData(struct fbtft_par *par, const u8 *buf, size_t len)
 {
-	// printk("%s: Write data 0x%04x\n",__FUNCTION__, iData);
-	LCD_SET_DAT( iData );
+	void __iomem  *addr = par->pdata->extra + LCD_DAT_MMAP_OFF;
+
+	while (len--) {
+		ndelay(20);
+		__raw_writew((*buf++ << 8) | LCD_DAT_LOWBYTE, addr);
+	}
 }
 
-static unsigned short lcd_ReadData( void )
+static u16 lcd_ReadData(struct fbtft_par *par)
 {
-	unsigned short	iData;
+	volatile void __iomem  *addr = par->pdata->extra + LCD_DAT_MMAP_OFF;
+	u16  high, low;
 
-	LCD_GET_DAT( iData );
+	ndelay(20);
+	high = __raw_readw(addr);
 
-	return iData;
+	ndelay(20);
+	low = __raw_readw(addr);
+
+	return  (high & 0xff00) | (low >> 8);
 }
 
-static unsigned short ili9341_GetControllerID( void )
+static unsigned short ili9341_GetControllerID_smp(struct fbtft_par *par)
 {
+	unsigned long	lockflags;
 	unsigned short	iParameter1;
 	unsigned short	iParameter2;
 
-	lcd_WriteCommand( 0xD3);
+	spin_lock_irqsave(&ebu_lock, lockflags);
 
-	iParameter1 = lcd_ReadData();
-	iParameter2 = lcd_ReadData();
+	lcd_WriteCommand(par, 0xD3);
+
+	iParameter1 = lcd_ReadData(par);
+	iParameter2 = lcd_ReadData(par);
+
+	spin_unlock_irqrestore(&ebu_lock, lockflags);
 
 	return iParameter2;
 }
 
-static int ili9341_Probe( void )
+
+// EBU address select register bits
+#define ADDSEL_BASE(x)		(x << 12)	// FFFFF000	5 to 20 bits (depending on MASK), starting from left
+#define ADDSEL_MASK(x)		(x << 4)	// 000000F0	4 bits
+#define ADDSEL_MIRRORE		(1 << 2)	// 00000002
+#define ADDSEL_REGEN		(1 << 0)	// 00000001
+
+// EBU configuration register bits eed to tell the EBU that we have the display attached and set it up properly
+#define BUSCON_WRDIS		(1 << 31)	// 80000000
+#define BUSCON_ADSWP		(1 << 30)	// 40000000
+#define BUSCON_PG_EN		(1 << 29)	// 20000000
+#define BUSCON_AGEN(x)		(x << 24)	// 07000000	3 bits	AGEN_DEMUX/RES/MUX/-/-/-/-/-
+#define BUSCON_SETUP_EN		(1 << 22)	// 00400000
+#define BUSCON_WAIT(x)		(x << 20)	// 00300000	2 bits	WAIT_DISABLE/ASYNC/SYNC/-
+#define	BUSCON_WAITINV_HI	(1 << 19)	// 00080000
+#define BUSCON_VN_EN		(1 << 18)	// 00040000
+#define BUSCON_XDM(x)		(x << 16)	// 00030000	2 bits	XDM8/16/-/-
+#define BUSCON_ALEC(x)		(x << 14)	// 6000C000	2 bits	ALEC0/1/2/3
+#define BUSCON_BCGEN(x)		(x << 12)	// 00003000	2 bits	BCGEN_CS/INTEL/MOTOROLA/RES
+#define BUSCON_WAITWRC(x)	(x << 8)	// 00000700	3 bits	WAITWRC0/1/2/3/4/5/6/7
+#define BUSCON_WAITRDC(x)	(x << 6)	// 000000C0	2 bits	WAITRDC0/1/2/3
+#define BUSCON_HOLDC(x)		(x << 4)	// 00000030	2 bits	HOLDC0/1/2/3
+#define BUSCON_RECOVC(x)	(x << 2)	// 0000000C	2 bits	RECOVC0/1/2/3
+#define BUSCON_CMULT(x)		(x << 0)	// 00000003	2 bits	CMULT1/4/8/16
+
+static int ili9341_Probe_smp(struct fbtft_par *par)
 {
-	unsigned short value = ili9341_GetControllerID();
-	printk("%s: Probed ID4: %x\n", __FUNCTION__, value);
-	return ( value == 0x9341 );
+	struct resource	*res;
+	unsigned short id;
+
+	// From DTS, determine addr space into which to map the fb controller registers
+	res = platform_get_resource(par->pdev, IORESOURCE_MEM, 0);
+	par->pdata->extra = devm_ioremap_resource(&par->pdev->dev, res);
+	printk("%s: mapped to %p\n", __FUNCTION__, par->pdata->extra);
+
+	if (IS_ERR(par->pdata->extra))
+		return 0;
+
+	// Set EBU addr select reg #2 to map fb controller regs into address space within KSEG1 area
+        ltq_ebu_w32(CPHYSADDR(par->pdata->extra)	// Addr prefix (without KSEG1 prefix) for fb controller registers
+		    | ADDSEL_MASK(15)			// Use 5+15 most significant bits of CPHYSADDR()
+		    | ADDSEL_REGEN,
+		    LTQ_EBU_ADDRSEL2);
+
+	// Set EBU bus configuration register #2; 0x1d3dd (resp. 0x1d7ff) used by original Arcadyan Linux (resp. U-Boot)
+        ltq_ebu_w32(BUSCON_XDM(1)			// XDM16
+		    | BUSCON_ALEC(3)			// ALEC3
+		    | BUSCON_BCGEN(1)			// BCGEN_INTEL
+		    | BUSCON_WAITWRC(3)			// WAITWRC3
+		    | BUSCON_WAITRDC(3)			// WAITRDC3
+		    | BUSCON_HOLDC(1)			// HOLDC1	BUSCON_HOLDC(3) used in U-Boot
+		    | BUSCON_RECOVC(3)			// RECOVC3
+		    | BUSCON_CMULT(1),			// CMULT4	BUSCON_CMULT(3)==CMULT16 used in U-Boot
+		    LTQ_EBU_BUSCON2);
+
+	// Query id to determine if fb controller is present
+	id = ili9341_GetControllerID_smp(par);
+	printk("%s: Probed ID4: %x\n", __FUNCTION__, id);
+
+	return id == 0x9341;
 }
 
 
-#if 0	/// Code from U-Boot?
+#if 0	/// Code from U-Boot
 static int init_display_uboot(struct fbtft_par *par)
 	{
 	// VCI=2.8V
@@ -174,27 +207,27 @@ static int init_display_uboot(struct fbtft_par *par)
 //		lcd_WriteData(0x2000);
 		write_reg(par, 0xF7, 0x20, 0x00);
 
-//		lcd_WriteCommand(0xC0);    //Power control
-//		lcd_WriteData(0x2100);   //VRH[5:0]
+//		lcd_WriteCommand(0xC0);	//Power control
+//		lcd_WriteData(0x2100);	//VRH[5:0]
 		write_reg(par, 0xC0, 0x21, 0x00);
 
-//		lcd_WriteCommand(0xC1);    //Power control
-//		lcd_WriteData(0x1200);   //SAP[2:0];BT[3:0]
+//		lcd_WriteCommand(0xC1);	//Power control
+//		lcd_WriteData(0x1200);	//SAP[2:0];BT[3:0]
 		write_reg(par, 0xC1, 0x12, 0x00);
 
-//		lcd_WriteCommand(0xC5);    //VCM control
+//		lcd_WriteCommand(0xC5);	//VCM control
 //		lcd_WriteData(0x243F);
 		write_reg(par, 0xC5, 0x24, 0x3F);
 
-//		lcd_WriteCommand(0xC7);    //VCM control2
+//		lcd_WriteCommand(0xC7);	//VCM control2
 //		lcd_WriteData(0xC200);
 		write_reg(par, 0xC7, 0xC2, 0x00);
 
-//		lcd_WriteCommand(0xb1);	   // Frame rate
+//		lcd_WriteCommand(0xb1);	// Frame rate
 //		lcd_WriteData(0x0016);
 		write_reg(par, 0xB1, 0x00, 0x16);
 
-//		lcd_WriteCommand(0x36);    // Memory Access Control
+//		lcd_WriteCommand(0x36);	// Memory Access Control
 //		if ( lcd_GetOrientation() == LCD_ORIENTATION_LANDSCAPE)
 //		  lcd_WriteData(0x4800);//08 48
 //		else
@@ -204,15 +237,15 @@ static int init_display_uboot(struct fbtft_par *par)
 //		lcd_WriteData(0x5500);
 		write_reg(par, 0x3A, 0x55, 0x00);
 
-//		lcd_WriteCommand(0xF2);    // 3Gamma Function Disable
+//		lcd_WriteCommand(0xF2);	// 3Gamma Function Disable
 //		lcd_WriteData(0x0000);
 		write_reg(par, 0xF2, 0x00, 0x00);
 
-//		lcd_WriteCommand(0x26);    //Gamma curve selected
+//		lcd_WriteCommand(0x26);	//Gamma curve selected
 //		lcd_WriteData(0x0100);
 		write_reg(par, 0x26, 0x01, 0x00);
 
-//		lcd_WriteCommand(0xE0);    //Set Gamma
+//		lcd_WriteCommand(0xE0);	//Set Gamma
 //		lcd_WriteData(0x0F1B);
 //		lcd_WriteData(0x170C);
 //		lcd_WriteData(0x0D08);
@@ -222,17 +255,17 @@ static int init_display_uboot(struct fbtft_par *par)
 //		lcd_WriteData(0x1003);
 //		lcd_WriteData(0x0000);
 		write_reg(par, 0xE0,
-					   0x0F, 0x1B,
-					   0x17, 0x0C,
-					   0x0D, 0x08,
-					   0x40, 0xA9,
-					   0x28, 0x06,
-					   0x0D, 0x03,
-					   0x10, 0x03,
-					   0x00, 0x00
-				 );
+			0x0F, 0x1B,
+			0x17, 0x0C,
+			0x0D, 0x08,
+			0x40, 0xA9,
+			0x28, 0x06,
+			0x0D, 0x03,
+			0x10, 0x03,
+			0x00, 0x00
+			);
 
-//		lcd_WriteCommand(0XE1);    //Set Gamma
+//		lcd_WriteCommand(0XE1);	//Set Gamma
 //		lcd_WriteData(0x0024);
 //		lcd_WriteData(0x2803);
 //		lcd_WriteData(0x1207);
@@ -242,20 +275,20 @@ static int init_display_uboot(struct fbtft_par *par)
 //		lcd_WriteData(0x2F3C);
 //		lcd_WriteData(0x0F00);
 		write_reg(par, 0xE1,
-					   0x00, 0x24,
-					   0x28, 0x03,
-					   0x12, 0x07,
-					   0x3F, 0x56,
-					   0x57, 0x09,
-					   0x12, 0x0C,
-					   0x2F, 0x3C,
-					   0x0F, 0x00
-				 );
+			0x00, 0x24,
+			0x28, 0x03,
+			0x12, 0x07,
+			0x3F, 0x56,
+			0x57, 0x09,
+			0x12, 0x0C,
+			0x2F, 0x3C,
+			0x0F, 0x00
+			);
 
-//		lcd_WriteCommand(0x11);    //Exit Sleep
+//		lcd_WriteCommand(0x11);	//Exit Sleep
 		write_reg(par, 0x11);
 		mdelay(120);
-//		lcd_WriteCommand(0x29);    //Display on
+//		lcd_WriteCommand(0x29);	//Display on
 		write_reg(par, 0x29);
 
 		return 0;
@@ -267,19 +300,12 @@ static int init_display_smp(struct fbtft_par *par)
 {
 	unsigned long lockflags;
 
-// As a reminder, the EBU setup in original eb904 U-Boot for the lcd. From lcd_Init() in file
-// package/infineon-utilities/feeds/ifx_feeds_uboot/open_uboot/src.904dsl/common/main.c:
-//
-//	*(unsigned long*)0xbe105328 = 0x160000f1;	// BSP_EBU_ADDSEL2 register
-//	*(unsigned long*)0xbe105368 = 0x1d3dd;		// BSP_EBU_BUSCON2 register
-//
-// Currently this is configured by U-Boot. Maybe the driver should do that too?
-
 	par->fbtftops.reset(par);
 
-	SPIN_LOCK_IRQSAVE(&ebu_lock, lockflags);
+	if (!ili9341_Probe_smp(par))
+		return -ENODEV;
 
-	ili9341_Probe();
+	spin_lock_irqsave(&ebu_lock, lockflags);
 
 	/* startup sequence for MI0283QT-9A */
 	write_reg_nolock(par, MIPI_DCS_SOFT_RESET);
@@ -295,28 +321,28 @@ static int init_display_smp(struct fbtft_par *par)
 	/* ------------power control-------------------------------- */
 //	write_reg_nolock(par, 0xC0, 0x26);
 //	write_reg_nolock(par, 0xC1, 0x11);
-	write_reg_nolock(par, 0xC0, 0x21); //VRH[5:0]
-	write_reg_nolock(par, 0xC1, 0x12); //SAP[2:0];BT[3:0]
+	write_reg_nolock(par, 0xC0, 0x21);			// VRH[5:0]
+	write_reg_nolock(par, 0xC1, 0x12);			// SAP[2:0];BT[3:0]
 
 	/* ------------VCOM --------- */
 //	write_reg_nolock(par, 0xC5, 0x35, 0x3E);
 //	write_reg_nolock(par, 0xC7, 0xBE);
-	write_reg_nolock(par, 0xC5, 0x24, 0x3F); //VCM control
-	write_reg_nolock(par, 0xC7, 0xC2);       //VCM control2
+	write_reg_nolock(par, 0xC5, 0x24, 0x3F);		// VCM control
+	write_reg_nolock(par, 0xC7, 0xC2);			// VCM control2
 	/* ------------memory access control------------------------ */
-	write_reg_nolock(par, MIPI_DCS_SET_PIXEL_FORMAT, 0x55); /* 16bit pixel */
+	write_reg_nolock(par, MIPI_DCS_SET_PIXEL_FORMAT, 0x55);	// 16bit pixel
 	/* ------------frame rate----------------------------------- */
 	// write_reg_nolock(par, 0xB1, 0x00, 0x1B);
-	write_reg_nolock(par, 0xB1, 0x00, 0x16); // uboot
+	write_reg_nolock(par, 0xB1, 0x00, 0x16);		// uboot
 	/* ------------Gamma---------------------------------------- */
 	/* write_reg_nolock(par, 0xF2, 0x08); */ /* Gamma Function Disable */
 	write_reg_nolock(par, MIPI_DCS_SET_GAMMA_CURVE, 0x01);
 	/* ------------display-------------------------------------- */
-	write_reg_nolock(par, 0xB7, 0x07); /* entry mode set */
+	write_reg_nolock(par, 0xB7, 0x07);			// entry mode set
 	/* ------------additional values---------------------------- */
-	write_reg_nolock(par, 0x13);       /* normal display mode on */
-	write_reg_nolock(par, 0x38);       /* idle mode off */
-	write_reg_nolock(par, 0x20);       /* inversion mode off */
+	write_reg_nolock(par, 0x13);				// normal display mode on
+	write_reg_nolock(par, 0x38);				// idle mode off
+	write_reg_nolock(par, 0x20);				// inversion mode off
 	/* --------------------------------------------------------- */
 	write_reg_nolock(par, 0xB6, 0x0A, 0x82, 0x27, 0x00);
 	write_reg_nolock(par, MIPI_DCS_EXIT_SLEEP_MODE);
@@ -324,27 +350,26 @@ static int init_display_smp(struct fbtft_par *par)
 	write_reg_nolock(par, MIPI_DCS_SET_DISPLAY_ON);
 	mdelay(20);
 
-	SPIN_UNLOCK_IRQRESTORE(&ebu_lock, lockflags);
+	spin_unlock_irqrestore(&ebu_lock, lockflags);
 
 	return 0;
 }
-
 
 static void set_addr_win_smp(struct fbtft_par *par, int xs, int ys, int xe, int ye)
 {
 	unsigned long lockflags;
 
-	SPIN_LOCK_IRQSAVE(&ebu_lock, lockflags);
+	spin_lock_irqsave(&ebu_lock, lockflags);
 
 	write_reg_nolock(par, MIPI_DCS_SET_COLUMN_ADDRESS,
-		  (xs >> 8) & 0xFF, xs & 0xFF, (xe >> 8) & 0xFF, xe & 0xFF);
+		(xs >> 8) & 0xFF, xs & 0xFF, (xe >> 8) & 0xFF, xe & 0xFF);
 
 	write_reg_nolock(par, MIPI_DCS_SET_PAGE_ADDRESS,
-		  (ys >> 8) & 0xFF, ys & 0xFF, (ye >> 8) & 0xFF, ye & 0xFF);
+		(ys >> 8) & 0xFF, ys & 0xFF, (ye >> 8) & 0xFF, ye & 0xFF);
 
 	write_reg_nolock(par, MIPI_DCS_WRITE_MEMORY_START);
 
-	SPIN_UNLOCK_IRQRESTORE(&ebu_lock, lockflags);
+	spin_unlock_irqrestore(&ebu_lock, lockflags);
 }
 
 
@@ -354,30 +379,31 @@ static void set_addr_win_smp(struct fbtft_par *par, int xs, int ys, int xe, int 
 #define MEM_L   BIT(4) /* ML vertical refresh order */
 #define MEM_H   BIT(2) /* MH horizontal refresh order */
 #define MEM_BGR (3) /* RGB-BGR Order */
+
 static int set_var_smp(struct fbtft_par *par)
 {
+	u8  mem;
+
 	switch (par->info->var.rotate) {
 	case 0:
-		write_reg_lock(par, MIPI_DCS_SET_ADDRESS_MODE,
-			       MEM_X | (par->bgr << MEM_BGR));
+		mem = MEM_X;
 		break;
 	case 270:
-		write_reg_lock(par, MIPI_DCS_SET_ADDRESS_MODE,
-			       MEM_V | MEM_L | (par->bgr << MEM_BGR));
+		mem = MEM_V | MEM_L;
 		break;
 	case 180:
-		write_reg_lock(par, MIPI_DCS_SET_ADDRESS_MODE,
-			       MEM_Y | (par->bgr << MEM_BGR));
+		mem = MEM_Y;
 		break;
 	case 90:
-		write_reg_lock(par, MIPI_DCS_SET_ADDRESS_MODE,
-			       MEM_Y | MEM_X | MEM_V | (par->bgr << MEM_BGR));
+		mem = MEM_Y | MEM_X | MEM_V;
 		break;
+	default:
+		return 0;
 	}
 
+	write_reg_lock(par, MIPI_DCS_SET_ADDRESS_MODE, mem | (par->bgr << MEM_BGR));
 	return 0;
 }
-
 
 /*
  * Gamma string format:
@@ -391,62 +417,41 @@ static int set_gamma_smp(struct fbtft_par *par, u32 *curves)
 	unsigned long lockflags;
 	int i;
 
-	SPIN_LOCK_IRQSAVE(&ebu_lock, lockflags);
+	spin_lock_irqsave(&ebu_lock, lockflags);
 
 	for (i = 0; i < par->gamma.num_curves; i++)
 		write_reg_nolock(par, 0xE0 + i,
-			  CURVE(i, 0), CURVE(i, 1), CURVE(i, 2),
-			  CURVE(i, 3), CURVE(i, 4), CURVE(i, 5),
-			  CURVE(i, 6), CURVE(i, 7), CURVE(i, 8),
-			  CURVE(i, 9), CURVE(i, 10), CURVE(i, 11),
-			  CURVE(i, 12), CURVE(i, 13), CURVE(i, 14));
+			CURVE(i, 0), CURVE(i, 1), CURVE(i, 2),
+			CURVE(i, 3), CURVE(i, 4), CURVE(i, 5),
+			CURVE(i, 6), CURVE(i, 7), CURVE(i, 8),
+			CURVE(i, 9), CURVE(i, 10), CURVE(i, 11),
+			CURVE(i, 12), CURVE(i, 13), CURVE(i, 14));
 
-	SPIN_UNLOCK_IRQRESTORE(&ebu_lock, lockflags);
+	spin_unlock_irqrestore(&ebu_lock, lockflags);
 
 	return 0;
 }
-
-#undef CURVE
-
-
-static void fbtft_write_8_wr_ebu(struct fbtft_par *par, u8 *buf, size_t len)
-{
-	u8 data;
-
-	fbtft_par_dbg_hex(DEBUG_WRITE, par, par->info->device, u8, buf, len, "%s(len=%d): ", __func__, len);
-
-	while (len--) {
-		data = *buf;
-
-		/* Set data */
-		lcd_WriteData(data);
-		buf++;
-	}
-}
-
 
 static int fbtft_write_8_wr_ebu_smp(struct fbtft_par *par, void *buf, size_t len)
 {
 	unsigned long lockflags;
 
-	SPIN_LOCK_IRQSAVE(&ebu_lock, lockflags);
-	fbtft_write_8_wr_ebu(par, buf, len);
-	SPIN_UNLOCK_IRQRESTORE(&ebu_lock, lockflags);
+	spin_lock_irqsave(&ebu_lock, lockflags);
+	lcd_WriteData(par, buf, len);
+	spin_unlock_irqrestore(&ebu_lock, lockflags);
 
 	return 0;
 }
-
 
 static int verify_gpios_ebu(struct fbtft_par *par)
 {
 	fbtft_par_dbg(DEBUG_VERIFY_GPIOS, par, "%s()\n", __func__);
 
-	if (!par->pdev)
-		return 0;
+//??	if (!par->pdev)
+//??		return 0;
 
 	return 0;
 }
-
 
 static void fbtft_write_reg8_bus8_ebu_v(struct fbtft_par *par, int len, va_list args)
 {
@@ -458,13 +463,12 @@ static void fbtft_write_reg8_bus8_ebu_v(struct fbtft_par *par, int len, va_list 
 
 	fbtft_par_dbg_hex(DEBUG_WRITE_REGISTER, par, par->info->device, u8, buf, len, "%s: ", __func__);
 
-	lcd_WriteCommand((unsigned char)*buf);
+	lcd_WriteCommand(par, *buf);
 	len--;
 
 	if (len > 0)
-		fbtft_write_8_wr_ebu(par, buf+1, len);
+		lcd_WriteData(par, buf+1, len);
 }
-
 
 static void fbtft_write_reg8_bus8_ebu(struct fbtft_par *par, int len, ...)
 {
@@ -475,21 +479,19 @@ static void fbtft_write_reg8_bus8_ebu(struct fbtft_par *par, int len, ...)
 	va_end(args);
 }
 
-
 static void fbtft_write_reg8_bus8_ebu_smp(struct fbtft_par *par, int len, ...)
 {
 	unsigned long lockflags;
 	va_list args;
 
-	SPIN_LOCK_IRQSAVE(&ebu_lock, lockflags);
+	spin_lock_irqsave(&ebu_lock, lockflags);
 
 	va_start(args, len);
 	fbtft_write_reg8_bus8_ebu_v(par, len, args);
 	va_end(args);
 
-	SPIN_UNLOCK_IRQRESTORE(&ebu_lock, lockflags);
+	spin_unlock_irqrestore(&ebu_lock, lockflags);
 }
-
 
 static struct fbtft_display display = {
 	.regwidth = 8,
@@ -515,6 +517,6 @@ FBTFT_REGISTER_DRIVER(DRVNAME, "ilitek,ili9341_eb904", &display);
 MODULE_ALIAS("platform:" DRVNAME);
 MODULE_ALIAS("platform:ili9341_eb904");
 
-MODULE_DESCRIPTION("FB driver for the ILI9341 LCD display controller");
-MODULE_AUTHOR("Christian Vogelgsang");
+MODULE_DESCRIPTION("FB driver for the ILI9341 LCD display controller in the Easybox 904");
+MODULE_AUTHOR("Christian Vogelgsang et al.");
 MODULE_LICENSE("GPL");
