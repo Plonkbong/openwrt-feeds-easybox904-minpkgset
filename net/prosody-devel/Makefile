@@ -8,7 +8,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=prosody-devel
-PKG_REV:=aaff40ec7001
+PKG_REV:=6f97acc4583b
 PKG_VERSION:=r$(PKG_REV)
 PKG_RELEASE:=1
 
@@ -16,7 +16,7 @@ PKG_SOURCE_PROTO:=hg
 PKG_SOURCE_VERSION:=$(PKG_REV)
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://hg.prosody.im/0.10/
+PKG_SOURCE_URL:=https://hg.prosody.im/0.11/
 #PKG_HASH:=1a59a322b71928a21985522aa00d0eab3552208d7bf9ecb318542a1b2fee3e8d
 PKG_MAINTAINER:=Thomas Heil <heil@terminal-consulting.de>
 PKG_LICENSE:=MIT/X11
@@ -103,6 +103,8 @@ define Package/prosody-devel/install
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/net/*.lua $(1)/usr/lib/prosody/net/
 	$(INSTALL_DIR) $(1)/usr/lib/prosody/net/http
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/net/http/*.lua $(1)/usr/lib/prosody/net/http/
+	$(INSTALL_DIR) $(1)/usr/lib/prosody/net/resolvers
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/net/resolvers/*.lua $(1)/usr/lib/prosody/net/resolvers/
 	$(INSTALL_DIR) $(1)/usr/lib/prosody/net/websocket
 	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/prosody/net/websocket/*.lua $(1)/usr/lib/prosody/net/websocket/
 	$(INSTALL_DIR) $(1)/usr/lib/prosody/util
