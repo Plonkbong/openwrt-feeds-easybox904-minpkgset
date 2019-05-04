@@ -1,0 +1,12 @@
+diff -rauN a/Makefile b/Makefile
+--- a/Makefile	2016-08-30 03:43:49.000000000 +0000
++++ b/Makefile	2017-09-14 07:39:54.593627828 +0000
+@@ -5,7 +5,7 @@
+ COMPAT_CFLAGS ?= -D _GNU_SOURCE -I ./compat53 -include compat-5.3.h
+ O_CFLAGS      ?= -fPIC -Wall -Wextra -pedantic -std=c99 $(COMPAT_CFLAGS)
+ SO_LDFLAGS    ?= -shared
+-DEPFILES      != [ -d $(BUILD)/deps ] && find $(BUILD)/deps -name *.d
++DEPFILES      ?= [ -d $(BUILD)/deps ] && find $(BUILD)/deps -name *.d
+ 
+ all: $(BUILD)/evdev/core.so
+ 

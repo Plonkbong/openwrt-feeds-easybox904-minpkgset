@@ -37,7 +37,6 @@ LCD4LINUX_DRIVERS:= \
 	EFN \
 	FutabaVFD \
 	FW8888 \
-	G15 \
 	GLCD2USB \
 	IRLCD \
 	$(if $(CONFIG_BROKEN),HD44780) \
@@ -77,6 +76,7 @@ LCD4LINUX_DRIVERS:= \
 	VNC \
 	serdisplib \
 	WincorNixdorf \
+#	G15 \
 #	ULA200 \
 #	X11 \
 
@@ -188,6 +188,7 @@ endef
 define Package/lcd4linux-eb904-full
 $(call Package/lcd4linux-eb904/Default)
   DEPENDS:= @DEVEL \
+	+serdisplib \
 	+libdbus \
 	+libgd \
 	$(if $(ICONV_FULL),+libiconv-full) \
