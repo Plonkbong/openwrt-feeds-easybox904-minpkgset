@@ -157,6 +157,7 @@ define Package/lcd4linux-eb904-custom
 $(call Package/lcd4linux-eb904/Default)
   DEPENDS:= \
 	+LCD4LINUX_EB904_CUSTOM_NEEDS_libdbus:libdbus \
+	+libusb-compat \
 	+serdisplib \
 	+LCD4LINUX_EB904_CUSTOM_NEEDS_libgd:libgd \
 	$(if $(ICONV_FULL),+LCD4LINUX_EB904_CUSTOM_NEEDS_libiconv:libiconv-full) \
